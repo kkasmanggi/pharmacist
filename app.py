@@ -7,7 +7,7 @@ import os
 # ==============================================================================
 
 st.set_page_config(
-    page_title="🤖 Chatbot Apoteker Gemini",
+    page_title="🤖 Chatbot Apoteker",
     page_icon="💊",
     layout="centered"
 )
@@ -103,3 +103,4 @@ if prompt := st.chat_input("Tanyakan tentang obat..."):
         st.error("Maaf, terjadi kesalahan saat berkomunikasi dengan Gemini.")
         st.error(f"Detail kesalahan: {e}")
         st.warning("Kemungkinan penyebab: masalah koneksi, API key tidak valid, atau kuota habis.")
+
