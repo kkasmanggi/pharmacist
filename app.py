@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 # Judul dan deskripsi di UI
-st.title("🤖 Chatbot Apoteker Gemini")
+st.title("🤖 Chatbot Apoteker")
 st.markdown("Halo! Saya adalah chatbot apoteker yang siap membantu Anda. Silakan tanyakan tentang obat yang Anda butuhkan.")
 
 # ==============================================================================
@@ -103,4 +103,5 @@ if prompt := st.chat_input("Tanyakan tentang obat..."):
         st.error("Maaf, terjadi kesalahan saat berkomunikasi dengan Gemini.")
         st.error(f"Detail kesalahan: {e}")
         st.warning("Kemungkinan penyebab: masalah koneksi, API key tidak valid, atau kuota habis.")
+
 
