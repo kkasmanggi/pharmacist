@@ -6,102 +6,115 @@ import os
 # KONFIGURASI APLIKASI STREAMLIT
 # ==============================================================================
 
-st.set_page_config(
-    page_title="🤖 Chatbot Apoteker",
-    page_icon="💊",
-    layout="centered"
-)
+# Mengatur tata letak halaman menjadi 'lebar' (wide)
+st.set_page_config(layout="wide", page_title="Chatbot Apoteker")
 
-# Judul dan deskripsi di UI
-st.title("🤖 Chatbot Apoteker")
-st.markdown("Halo! Saya adalah chatbot apoteker yang siap membantu Anda. Silakan tanyakan tentang obat yang Anda butuhkan.")
+# Judul utama aplikasi di sidebar
+st.sidebar.title("🩺 Chatbot Apoteker 💊")
+st.sidebar.markdown("---")
 
 # ==============================================================================
 # PENGATURAN API KEY DAN MODEL
 # ==============================================================================
 
-# Mengambil API Key dari Streamlit Secrets atau Environment Variables
-# Ini adalah cara yang aman untuk menyimpan kredensial.
-# JANGAN SIMPAN API KEY LANGSUNG DI KODE ANDA.
-try:
-    API_KEY = st.secrets["GEMINI_API_KEY"]
-except (KeyError, FileNotFoundError):
-    st.warning("GEMINI_API_KEY belum diatur di Streamlit Secrets. "
-               "Silakan tambahkan di `Secrets` pada dashboard Streamlit Cloud Anda.")
-    st.stop() # Hentikan aplikasi jika API Key tidak ada
+# Menggunakan Streamlit secrets untuk menyimpan API Key
+# Ini adalah cara paling aman untuk deployment di GitHub
+# Buat file .streamlit/secrets.toml di repository Anda dan tambahkan:
+# GEMINI_API_KEY="AIzaSyBWzMBC6hVzvooktYrFkO5fvrDuJKVxqio"
+# Atau, jika Anda menjalankan lokal, gunakan st.text_input
+api_key = st.sidebar.text_input("Masukkan API Key Gemini Anda:", type="password")
 
-MODEL_NAME = 'gemini-1.5-flash'
-
-# ==============================================================================
-# KONTEKS AWAL CHATBOT
-# ==============================================================================
-
-# Definisikan peran chatbot Anda di sini.
-INITIAL_CHATBOT_CONTEXT = [
-    {"role": "user", "parts": ["Saya adalah seorang apoteker. Tuliskan obat apa yang diinginkan untuk menyembuhkan penyakit Anda. Jawaban singkat dan jelas. Tolak pertanyaan selain tentang obat."]},
-    {"role": "model", "parts": ["Baik! Saya akan menjawab pertanyaan Anda tentang obat."]}
-]
-
-# ==============================================================================
-# FUNGSI UTAMA DAN LOGIKA STREAMLIT
-# ==============================================================================
-
-# Konfigurasi Gemini API
-try:
-    genai.configure(api_key=API_KEY)
-except Exception as e:
-    st.error(f"Kesalahan saat mengkonfigurasi API Key: {e}")
+if not api_key:
+    st.info("⚠️ Harap masukkan API Key Gemini Anda untuk memulai.")
     st.stop()
 
-# Inisialisasi model
-@st.cache_resource
+# Mengatur API Key setelah diinput
+try:
+    genai.configure(api_key=api_key)
+except Exception as e:
+    st.error(f"❌ Kesalahan konfigurasi API Key: {e}")
+    st.stop()
+
+# Menampilkan informasi model
+model_name = 'gemini-1.5-flash'
+st.sidebar.markdown(f"**Model yang Digunakan:** `{model_name}`")
+
+# ==============================================================================
+# FUNGSI UNTUK MEMBUAT CHAT DAN MENGIRIM PESAN
+# ==============================================================================
+
+@st.cache_resource(show_spinner="Menyiapkan model...")
 def get_model():
-    """Menginisialisasi dan menyimpan model dalam cache untuk efisiensi."""
-    return genai.GenerativeModel(
-        MODEL_NAME,
-        generation_config=genai.types.GenerationConfig(
-            temperature=0.4,
-            max_output_tokens=500
+    """Menginisialisasi dan mengembalikan model Gemini."""
+    try:
+        return genai.GenerativeModel(
+            model_name,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.4,
+                max_output_tokens=500
+            )
         )
-    )
+    except Exception as e:
+        st.error(f"❌ Kesalahan saat inisialisasi model: {e}")
+        st.stop()
 
-model = get_model()
+def initialize_chat():
+    """Menginisialisasi sesi chat dengan riwayat awal."""
+    # Definisikan peran chatbot
+    initial_context = [
+        {"role": "user", "parts": ["Saya adalah seorang apoteker. Tuliskan obat apa yang di inginkan untuk menyembuhkan penyakit Anda. Jawaban singkat dan jelas. Tolak pertanyaan selain tentang obat."]},
+        {"role": "model", "parts": ["Baik! Saya akan menjawab pertanyaan Anda tentang Obat."]}
+    ]
+    model = get_model()
+    return model.start_chat(history=initial_context)
 
-# Inisialisasi riwayat chat
+# ==============================================================================
+# APLIKASI UTAMA STREAMLIT
+# ==============================================================================
+
+st.header("Selamat Datang di Chatbot Apoteker! 💊", divider="blue")
+st.markdown("Tanyakan kepada saya tentang obat yang Anda butuhkan, dan saya akan memberikan informasi singkat dan jelas. 👋")
+
+# Inisialisasi chat di session state jika belum ada
+if "chat_session" not in st.session_state:
+    st.session_state.chat_session = initialize_chat()
+
+# Menampilkan riwayat chat
 if "messages" not in st.session_state:
-    st.session_state.messages = INITIAL_CHATBOT_CONTEXT.copy()
+    st.session_state.messages = []
 
-# Tampilkan riwayat pesan yang ada
+# Menambahkan pesan pembuka dari model ke riwayat
+if not st.session_state.messages:
+    # Ambil pesan awal dari inisialisasi chat
+    initial_message = st.session_state.chat_session.history[1].parts[0].text
+    st.session_state.messages.append({"role": "assistant", "content": initial_message})
+
 for message in st.session_state.messages:
-    if message["role"] == "user":
-        with st.chat_message("user"):
-            st.markdown(message["parts"][0])
-    elif message["role"] == "model":
-        with st.chat_message("assistant"):
-            st.markdown(message["parts"][0])
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-# Menerima input dari pengguna
-if prompt := st.chat_input("Tanyakan tentang obat..."):
-    # Tambahkan pesan pengguna ke riwayat
-    st.session_state.messages.append({"role": "user", "parts": [prompt]})
+# Kolom input untuk pengguna
+if prompt := st.chat_input("Apa nama obat untuk penyakit Anda?"):
+    # Tambahkan pesan pengguna ke riwayat dan tampilkan
+    st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Kirim input ke model dan dapatkan respons
-    try:
-        # Gunakan riwayat dari st.session_state
-        chat_session = model.start_chat(history=st.session_state.messages)
-        response = chat_session.send_message(prompt)
+    # Kirim prompt ke Gemini dan tampilkan balasan
+    with st.chat_message("assistant"):
+        with st.spinner("Sedang mencari informasi..."):
+            try:
+                response = st.session_state.chat_session.send_message(prompt)
+                st.markdown(response.text)
+                st.session_state.messages.append({"role": "assistant", "content": response.text})
+            except Exception as e:
+                st.error(f"❌ Maaf, terjadi kesalahan saat memproses permintaan Anda: {e}")
 
-        # Tambahkan respons model ke riwayat
-        st.session_state.messages.append({"role": "model", "parts": [response.text]})
+# Tombol untuk mereset chat
+if st.sidebar.button("Mulai Chat Baru"):
+    st.session_state.messages = []
+    st.session_state.chat_session = initialize_chat()
+    st.rerun()
 
-        with st.chat_message("assistant"):
-            st.markdown(response.text)
-
-    except Exception as e:
-        st.error("Maaf, terjadi kesalahan saat berkomunikasi dengan Gemini.")
-        st.error(f"Detail kesalahan: {e}")
-        st.warning("Kemungkinan penyebab: masalah koneksi, API key tidak valid, atau kuota habis.")
-
-
+st.sidebar.markdown("---")
+st.sidebar.info("Disclaimer: Informasi ini hanya sebagai panduan awal. Selalu konsultasikan dengan apoteker atau dokter profesional untuk diagnosis dan pengobatan yang tepat.")
